@@ -1,0 +1,29 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      components:
+        description: "The list of components to deploy"
+        required: true
+        type: string
+     
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # Validate the components input
+      # Should be a comma-separated list of components 
+      # e.g. "component1,component2,component3" only [a-zA-Z0-9_\-] are allowed for
+      # component names
+      # at least one component should be provided
+      - name: Validate components input
+        run: |
+          components="${{ github.event.inputs.components }}"
+          if [[ ! $components =~ ^([a-zA-Z0-9_\-]+,)*[a-zA-Z0-9_\-]+$ ]]; then
+            echo "Invalid components input"
+            exit 1
+          fi
+
+      # For now, just echo the workflow inputs
+      - run: echo "${{ github.event.inputs }}"
