@@ -21,7 +21,7 @@ jobs:
         run: |
           components="${{ github.event.inputs.components }}"
           if [[ ! $components =~ ^([a-zA-Z0-9_\-]+,)*[a-zA-Z0-9_\-]+$ ]]; then
-            echo "Invalid components input"
+            echo "::error title=Invalid input::Invalid components input, should be a comma-separated list of components"
             exit 1
           fi
 
