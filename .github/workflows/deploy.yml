@@ -11,6 +11,12 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
+    env:
+      # A list of directories to search for components
+      COMPONENTS_SEARCH_DIRS: "api-sites,services,web"
+      COMPONENT_CONFIGURATION_FILE_NAME: ".component-configuration.yml"
+
     steps:
       # Validate the components input
       # Should be a comma-separated list of components 
@@ -25,5 +31,55 @@ jobs:
             exit 1
           fi
 
-      # For now, just echo the workflow inputs
-      - run: echo "${{ github.event.inputs }}"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Find the component directories, look through the COMPONENTS_SEARCH_DIRS for a file named
+      # .component-configuration.yml, this file should contain the component name in the yaml field
+      # `name: <component-name>`
+      - name: Find component directories
+        uses: actions/github-script@v7
+        id: find-component-directories
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const neededComponents = "${{ github.event.inputs.components }}".split(",");
+            const searchDirs = "${{ env.COMPONENTS_SEARCH_DIRS }}".split(",");
+
+            const foundComponents = [];
+
+            const components = [];
+
+            for (const searchDir of searchDirs) {
+              const files = fs.readdirSync(searchDir);
+              for (const file of files) {
+                const filePath = path.join(searchDir, file);
+                if (fs.statSync(filePath).isDirectory()) {
+                  const configFile = path.join(filePath, "${{ env.COMPONENT_CONFIGURATION_FILE_NAME }}");
+                  if (fs.existsSync(configFile)) {
+                    const content = fs.readFileSync(configFile, 'utf8');
+                    const config = yaml.load(content);
+                    if (neededComponents.includes(config.name)) {
+                      foundComponents.push(config.name);
+                      components.push(filePath);
+                    }
+                  }
+                }
+              }
+            }
+
+            // Make a warning for each component that was not found
+            for (const component of neededComponents) {
+              if (!foundComponents.includes(component)) {
+                core.warning(`Component ${component} not found`);
+              }
+            }
+
+            core.setOutput('components', components);
+
+      # Echo the found components
+      - name: Echo found components
+        run: |
+          echo "Found components: ${{ steps.find-component-directories.outputs.components }}"
