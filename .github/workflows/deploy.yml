@@ -52,27 +52,30 @@ jobs:
 
             const components = [];
 
-            for (const searchDir of searchDirs) {
-              if (!fs.existsSync(searchDir)) {
-                core.warning(`Search directory ${searchDir} does not exist`);
-                
-                continue;
-              }
-              const files = fs.readdirSync(searchDir);
+            // Recursively search for the component configuration file
+            const searchForComponent = (dir) => {
+              const files = fs.readdirSync(dir);
+
               for (const file of files) {
-                const filePath = path.join(searchDir, file);
-                if (fs.statSync(filePath).isDirectory()) {
-                  const configFile = path.join(filePath, "${{ env.COMPONENT_CONFIGURATION_FILE_NAME }}");
-                  if (fs.existsSync(configFile)) {
-                    const content = fs.readFileSync(configFile, 'utf8');
-                    const config = yaml.load(content);
-                    if (neededComponents.includes(config.name)) {
-                      foundComponents.push(config.name);
-                      components.push(filePath);
-                    }
+                const filePath = path.join(dir, file);
+                const stat = fs.statSync(filePath);
+
+                if (stat.isDirectory()) {
+                  searchForComponent(filePath);
+                } else if (file === "${{ env.COMPONENT_CONFIGURATION_FILE_NAME }}") {
+                  const componentConfig = fs.readFileSync(filePath, 'utf8');
+                  const componentConfigYaml = require('js-yaml').safeLoad(componentConfig);
+
+                  if (componentConfigYaml.name) {
+                    components.push(componentConfigYaml.name);
+                    foundComponents.push(componentConfigYaml.name);
                   }
                 }
               }
+            };
+
+            for (const searchDir of searchDirs) {
+              searchForComponent(searchDir);
             }
 
             // Make a warning for each component that was not found
