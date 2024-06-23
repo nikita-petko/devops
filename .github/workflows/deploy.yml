@@ -71,7 +71,7 @@ jobs:
                   const componentConfigYaml = require('js-yaml').safeLoad(componentConfig);
 
                   if (componentConfigYaml.name) {
-                    components.push(componentConfigYaml.name);
+                    components.push(filePath);
                     foundComponents.push(componentConfigYaml.name);
                   }
                 }
