@@ -123,7 +123,7 @@ jobs:
             }
 
             // Make a warning for each component that was not found
-            for (const component of neededComponents) {
+            for (const component of neededComponents.map(c => c.split(":")[0])) {
               if (!foundComponents.includes(component)) {
                 core.warning(`Component ${component} not found`);
               }
