@@ -9,8 +9,12 @@ on:
         type: string
      
 jobs:
-  deploy:
+  parse-components:
+    name: Parse components (Validate and find component directories)
     runs-on: ubuntu-latest
+
+    outputs:
+      components: ${{ steps.find-component-directories.outputs.components }}
 
     env:
       # A list of directories to search for components
@@ -58,7 +62,7 @@ jobs:
 
             const foundComponents = [];
 
-            const components = [];
+            const components = {};
 
             // Recursively search for the component configuration file
             const searchForComponent = (dir) => {
@@ -80,7 +84,7 @@ jobs:
 
                   if (componentConfigYaml.name) {
                     // Push the absolute path to the component file
-                    components.push(path.resolve(filePath));
+                    components[componentConfigYaml.name] = path.resolve(filePath);
                     foundComponents.push(componentConfigYaml.name);
                   }
                 }
@@ -100,7 +104,23 @@ jobs:
 
             core.setOutput('components', components);
 
-      # Echo the found components
-      - name: Echo found components
-        run: |
-          echo "Found components: ${{ steps.find-component-directories.outputs.components }}"
+  test-job:
+    name: Test job
+    runs-on: ubuntu-latest
+
+    needs: parse-components
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const components = "${{ needs.parse-components.outputs.components }}";
+            console.log(components);
+            // Run tests for each component
+            for (const component in components) {
+              console.log(`Running tests for ${component}`);
+            }
