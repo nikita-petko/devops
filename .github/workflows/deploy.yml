@@ -15,7 +15,7 @@ jobs:
     env:
       # A list of directories to search for components
       COMPONENTS_SEARCH_DIRS: "api-sites,services,web"
-      COMPONENT_CONFIGURATION_FILE_NAME: ".component-configuration.yml"
+      COMPONENT_CONFIGURATION_FILE_NAME: ".component.yml"
 
     steps:
       # Validate the components input
