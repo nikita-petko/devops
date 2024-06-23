@@ -76,7 +76,7 @@ jobs:
                   searchForComponent(filePath);
                 } else if (file === "${{ env.COMPONENT_CONFIGURATION_FILE_NAME }}") {
                   const componentConfig = fs.readFileSync(filePath, 'utf8');
-                  const componentConfigYaml = require('js-yaml').safeLoad(componentConfig);
+                  const componentConfigYaml = require('js-yaml').load(componentConfig);
 
                   if (componentConfigYaml.name) {
                     components.push(filePath);
