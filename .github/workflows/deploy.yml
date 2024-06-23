@@ -10,7 +10,7 @@ on:
      
 jobs:
   parse-components:
-    name: Parse components (Validate and find component directories)
+    name: Validate and find component directories
     runs-on: ubuntu-latest
 
     outputs:
@@ -118,7 +118,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const components = "${{ needs.parse-components.outputs.components }}";
+            const components = ${{ needs.parse-components.outputs.components }};
             console.log(components);
             // Run tests for each component
             for (const component in components) {
