@@ -34,6 +34,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install needed dependencies
+        run: npm install js-yaml
+
+
       # Find the component directories, look through the COMPONENTS_SEARCH_DIRS for a file named
       # .component-configuration.yml, this file should contain the component name in the yaml field
       # `name: <component-name>`
