@@ -1,0 +1,34 @@
+name: Another Job
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_test_job_1:
+        description: "Run Test Job 1"
+        required: true
+        type: boolean
+     
+jobs:
+  test-job-1:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.run_test_job_1 == 'true' }}
+
+    outputs:
+      test-job-1-output: ${{ steps.test-job-1-step-1.outputs.test-job-1-output }}
+
+    steps:
+      - name: Test Job 1 Step 1
+        id: test-job-1-step-1
+        run: echo "::set-output name=test-job-1-output::Test Job 1 Step 1 Output"
+
+  test-job-2:
+    runs-on: ubuntu-latest
+
+    needs: test-job-1
+
+    env:
+      TEST_JOB_1_OUTPUT: ${{ needs.test-job-1.outputs.test-job-1-output || 'not set' }}
+
+    steps:
+      - name: Test Job 2 Step 1
+        run: 'echo "Test Job 1 Output: $TEST_JOB_1_OUTPUT"'
