@@ -26,6 +26,8 @@ jobs:
 
     needs: test-job-1
 
+    if: always()
+
     env:
       TEST_JOB_1_OUTPUT: ${{ needs.test-job-1.outputs.test-job-1-output || 'not set' }}
 
