@@ -142,7 +142,7 @@ jobs:
         run: npm install js-yaml
 
       - name: Validate Components
-        uses: mfdlabs/component-nomad-parser-action@v3
+        uses: mfdlabs/component-nomad-parser-action@v4
         id: validate-components # Output here is post validation, any components that do not have a deploy section will be removed
         env:
           NOMAD_ENVIRONMENT: development
