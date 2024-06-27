@@ -9,7 +9,7 @@ on:
         type: string
      
 jobs:
-  parse-components:
+  parse-input-components:
     name: Validate and find component directories
     runs-on: ubuntu-latest
 
@@ -62,13 +62,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-
       - name: Install needed dependencies
         run: npm install js-yaml
-
 
       # Find the component directories, look through the COMPONENTS_SEARCH_DIRS for a file named
       # .component-configuration.yml, this file should contain the component name in the yaml field
@@ -132,22 +127,33 @@ jobs:
             core.setOutput('components', components);
 
   test-job:
-    name: Test job
+    name: Parse and Validate Components
     runs-on: ubuntu-latest
 
-    needs: parse-components
+    needs: parse-input-components
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run tests
+      - name: Install needed dependencies
+        run: npm install js-yaml
+
+      - name: Validate Components
+        uses: mfdlabs/component-nomad-parser-action@v2
+        id: validate-components # Output here is post validation, any components that do not have a deploy section will be removed
+        env:
+          NOMAD_ENVIRONMENT: development
+          NOMAD_SHORT_ENVIRONMENT: dev
+        with:
+          components: ${{ needs.parse-input-components.outputs.components }}
+
+      - name: Debug
         uses: actions/github-script@v7
         with:
           script: |
-            const components = ${{ needs.parse-components.outputs.components }};
-            console.log(components);
-            // Run tests for each component
-            for (const component in components) {
-              console.log(`Running tests for ${component}`);
+            const components = new Map(Object.entries(${{ steps.validate-components.outputs.nomad-files }}));
+
+            for (const [component, nomadFile] of components) {
+              console.log(`Component: ${component}, Nomad File: ${nomadFile}`);
             }
