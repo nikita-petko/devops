@@ -26,11 +26,11 @@ jobs:
       # "component1:component1-version,component2:component2-version", and if it does
       # not contain a colon, the version will be set to the latest
       - name: Validate and Find components
-        uses: mfdlabs/component-finder-action@v2
+        uses: mfdlabs/component-finder-action@v3
         id: find-component-directories
         with:
           components: ${{ github.event.inputs.components }}
-          search-folders: api-sites,services,web
+          component-search-directories: api-sites,services,web
 
   parse-nomad-jobs:
     name: Parse and Validate Components
