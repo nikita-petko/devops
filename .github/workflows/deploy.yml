@@ -97,7 +97,7 @@ jobs:
             const path = require('path');
             const child_process = require('child_process');
 
-            let jobs = JSON.parse('${{ needs.parse-nomad-jobs.outputs.nomad-files }}');
+            let jobs = ${{ needs.parse-nomad-jobs.outputs.nomad-files }};
             jobs = new Map(Object.entries(jobs));
 
             const failedJobs = [];
