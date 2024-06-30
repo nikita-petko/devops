@@ -26,7 +26,7 @@ jobs:
       # "component1:component1-version,component2:component2-version", and if it does
       # not contain a colon, the version will be set to the latest
       - name: Validate and Find components
-        uses: mfdlabs/component-finder-action@v3
+        uses: mfdlabs/component-finder-action@v4
         id: find-component-directories
         with:
           components: ${{ github.event.inputs.components }}
