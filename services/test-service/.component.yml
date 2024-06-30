@@ -1,4 +1,4 @@
-component: grid-bot
+component: test-service
 
 # This is only used by the build worklow,
 # it determines how the component is built
@@ -21,43 +21,24 @@ build:
 deployment:
   count: 1
 
-  job: grid-bot-${{ env.NOMAD_SHORT_ENVIRONMENT }}
+  job: redis-test-${{ env.NOMAD_SHORT_ENVIRONMENT }}
 
   # Passed to the meta section in Nomad
   meta:
     ENVIRONMENT: ${{ env.NOMAD_ENVIRONMENT }}
 
   containers: # Maps to the groups section in Nomad
-    - image: mfdlabs/grid-bot
+    - image: redis
       resources:
-        cpu: 2000
-        ram: 1000
+        cpu: 500
+        ram: 256
       network:
-        mode: host
         ports:
-          metrics:
-            to: 8101
-          grpc:
-            to: 5000
+          db:
+            to: 6379
       services:
-        - name: grid-bot-${{ env.NOMAD_SHORT_ENVIRONMENT }}
+        - name: redis-test-${{ env.NOMAD_SHORT_ENVIRONMENT }}
           port: metrics
           tags:
             - ${{ env.NOMAD_ENVIRONMENT }}
-          checks:
-            - type: http
-              path: /metrics
-      volumes:
-        - '/var/run/docker.sock:/var/run/docker.sock'
-        - '/tmp/.X11-unix:/tmp/.X11-unix'
-        - '/opt/grid/scripts:/opt/grid/scripts'
-        - '/_/_logs/grid-bot/${{ env.NOMAD_ENVIRONMENT }}:/tmp/mfdlabs/logs'
-      config_maps:
-        - destination: secrets/file.env
-          env: true
-          on_change: restart
-          data: |
-            DISPLAY=:1
-            DEFAULT_LOG_LEVEL=Information
-            VAULT_ADDR="http://vault.service.consul:8200"
-            VAULT_TOKEN="{{ with secret "grid-bot-settings/grid-bot-vault" }}{{ .Data.data.vault_token }}{{ end }}"
+ 
