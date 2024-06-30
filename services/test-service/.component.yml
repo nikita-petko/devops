@@ -9,14 +9,14 @@ build:
   component_directory: ./.deploy
 
   additional_args:
-    - -p:IMAGE_TAG=${{ env.VERSION }}
+    - -p:IMAGE_TAG=${{ env.NOMAD_VERSION }}
     - -p:CI=true
 
   docker:
     docker_file: Dockerfile
     image_name: mfdlabs/grid-bot
     build_args:
-      - IMAGE_TAG=${{ env.VERSION }}
+      - IMAGE_TAG=${{ env.NOMAD_VERSION }}
     
 deployment:
   count: 1
@@ -30,8 +30,8 @@ deployment:
   containers: # Maps to the groups section in Nomad
     - image: redis
       resources:
-        cpu: 500
-        ram: 256
+        cpu: ${{ env.NOMAD_CPU }}
+        ram: ${{ env.NOMAD_RAM }}
       network:
         ports:
           db:
