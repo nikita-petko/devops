@@ -30,6 +30,7 @@ jobs:
         id: find-component-directories
         with:
           components: ${{ github.event.inputs.components }}
+          search-folders: api-sites,services,web
 
   parse-nomad-jobs:
     name: Parse and Validate Components
