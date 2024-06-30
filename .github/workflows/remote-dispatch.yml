@@ -1,0 +1,17 @@
+name: Test Remote Workflow Dispatch
+
+on:
+  workflow_dispatch:
+    
+
+jobs:
+  test-remote-workflow-dispatch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test Remote Workflow Dispatch
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: deploy.yml
+          ref: main
+          inputs: '{ "components": "grid-bot:latest" }'
