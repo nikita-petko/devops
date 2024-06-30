@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate and Find components
-        uses: mfdlabs/component-finder-action@v7
+        uses: mfdlabs/component-finder-action@v8
         id: find-component-directories
         with:
           components: ${{ github.event.inputs.components }}
