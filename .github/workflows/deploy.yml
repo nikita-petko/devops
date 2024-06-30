@@ -17,6 +17,13 @@ on:
           - staging
           - production
 
+      # In the form of "component,cpu:ram;component2,cpu:ram"
+      nomad_resources:
+        description: "The resources to use when deploying"
+        required: false
+        default: ""
+        type: string
+
 permissions:
   deployments: write
      
@@ -26,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
 
     outputs:
-      components: ${{ steps.find-component-directories.outputs.components }}
+      nomad-files: ${{ steps.components-to-nomad-jobs.outputs.nomad-files }}
 
     steps:
       - name: Checkout code
@@ -39,37 +46,23 @@ jobs:
           components: ${{ github.event.inputs.components }}
           component-search-directories: api-sites,services,web
 
-  parse-nomad-jobs:
-    name: Parse and Validate Components
-    runs-on: ubuntu-latest
-
-    needs: parse-input-components
-
-    if: ${{ needs.parse-input-components.outputs.components != '' }}
-
-    outputs:
-      nomad-files: ${{ steps.components-to-nomad-jobs.outputs.nomad-files }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Components to Nomad Jobs
-        uses: mfdlabs/component-nomad-parser-action@v6
+        uses: mfdlabs/component-nomad-parser-action@v7
         id: components-to-nomad-jobs
         env:
           NOMAD_ENVIRONMENT: ${{ github.event.inputs.nomad_environment }}
           NOMAD_SHORT_ENVIRONMENT: ${{ github.event.inputs.nomad_environment == 'production' && 'prod' || 'stage' }}
         with:
-          components: ${{ needs.parse-input-components.outputs.components }}
+          components: ${{ steps.find-component-directories.outputs.components }}
+          resources: ${{ github.event.inputs.nomad_resources }}
 
   deploy-nomad-jobs:
     name: Deploy Nomad Jobs
     runs-on: local-infra
 
-    needs: parse-nomad-jobs
+    needs: parse-input-components
 
-    if: ${{ needs.parse-nomad-jobs.outputs.nomad-files != '' }}
+    if: ${{ needs.parse-input-components.outputs.nomad-files != '{}' }}
 
     env:
       NOMAD_ADDR: ${{ vars.NOMAD_ADDR }}
@@ -100,7 +93,7 @@ jobs:
             const path = require('path');
             const child_process = require('child_process');
 
-            let jobs = ${{ needs.parse-nomad-jobs.outputs.nomad-files }};
+            let jobs = JSON.parse(${{ needs.parse-input-components.outputs.nomad-files }});
             jobs = new Map(Object.entries(jobs));
 
             const failedJobs = [];
