@@ -16,6 +16,9 @@ on:
         options:
           - staging
           - production
+
+permissions:
+  deployments: write
      
 jobs:
   parse-input-components:
