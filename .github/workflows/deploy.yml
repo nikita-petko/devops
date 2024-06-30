@@ -62,7 +62,7 @@ jobs:
 
   deploy-nomad-jobs:
     name: Deploy Nomad Jobs
-    runs-on: local-infrastructure
+    runs-on: local-infra
 
     needs: parse-nomad-jobs
 
