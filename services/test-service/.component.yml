@@ -5,7 +5,7 @@ component: test-service
 # Docker only relevant when the argument
 # 
 build:
-  project_file: src/Grid.Bot.csproj
+  project_file: src/Test.Service.csproj
   component_directory: ./.deploy
 
   additional_args:
@@ -14,7 +14,7 @@ build:
 
   docker:
     docker_file: Dockerfile
-    image_name: mfdlabs/grid-bot
+    image_name: mfdlabs/test-service
     build_args:
       - IMAGE_TAG=${{ env.NOMAD_VERSION }}
     
