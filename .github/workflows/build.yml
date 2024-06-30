@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "services/**"
+      - ".github/workflows/build.yml"
 
     branches:
       - "**"
@@ -143,6 +144,12 @@ jobs:
       CREATE_RELEASE: ${{ github.event.inputs.create_release || !contains(github.event.head_commit.message, '#!skip-release!#') }}
       CREATE_IMAGE: ${{ github.event.inputs.create_image || !contains(github.event.head_commit.message, '#!skip-image!#') }}
 
+      COMPONENT_NAMES: ${{ needs.build.outputs.components }}
+
+    steps:
+      - name: Echo Component Names
+        run: 'echo "Components: ${{ env.COMPONENT_NAMES }}"'
+
   
   deploy:
     if: ${{ !contains(github.event.head_commit.message, '#!skip-deploy!#') }}
@@ -158,3 +165,9 @@ jobs:
       NOMAD_SHORT_ENVIRONMENT: ${{ github.event.inputs.nomad_environment == 'production' && 'prod' || 'stage' }}
 
       NOMAD_RESOURCES: ${{ github.event.inputs.nomad_resources }}
+
+      DEPLOYABLE_COMPONENTS: ${{ (github.event_name == 'push' && needs.get-component-names.outputs.deployable_components) || github.event.inputs.deployable_components }}
+
+    steps:
+      - name: Echo Component Names
+        run: 'echo "Components: ${{ env.DEPLOYABLE_COMPONENTS }}"'
