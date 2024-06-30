@@ -17,6 +17,9 @@ jobs:
       components: ${{ steps.find-component-directories.outputs.components }}
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       # Validate the components input
       # Should be a comma-separated list of components 
       # e.g. "component1,component2,component3" only [a-zA-Z0-9_\-] are allowed for
