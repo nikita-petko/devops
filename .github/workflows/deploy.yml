@@ -16,11 +16,6 @@ jobs:
     outputs:
       components: ${{ steps.find-component-directories.outputs.components }}
 
-    env:
-      # A list of directories to search for components
-      COMPONENTS_SEARCH_DIRS: "api-sites,services,web"
-      COMPONENT_CONFIGURATION_FILE_NAME: ".component.yml"
-
     steps:
       # Validate the components input
       # Should be a comma-separated list of components 
@@ -30,103 +25,13 @@ jobs:
       # components can also contain a single colon like:
       # "component1:component1-version,component2:component2-version", and if it does
       # not contain a colon, the version will be set to the latest
-      - name: Validate components input
-        id: validate-components
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const components = "${{ github.event.inputs.components }}";
-            const componentsArray = components.split(",");
-            const validComponentRegex = /^[a-zA-Z0-9_\-\.]+(:[a-zA-Z0-9_\-\.]+)?$/;
-
-            let newComponents = '';
-
-            for (const component of componentsArray) {
-              if (!validComponentRegex.test(component)) {
-                core.setFailed(`Invalid component name: ${component}`);
-              }
-
-              if (component.split(":").length > 1) {
-                const [name, version] = component.split(":");
-                console.log(`Component: ${name}, Version: ${version}`);
-
-                newComponents += `${name}:${version},`;
-              } else {
-                console.log(`Component: ${component}, Version: latest`);
-                newComponents += `${component}:latest,`;
-              }
-            }
-
-            core.setOutput('components', newComponents.slice(0, -1));
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install needed dependencies
-        run: npm install yaml
-
-      # Find the component directories, look through the COMPONENTS_SEARCH_DIRS for a file named
-      # .component-configuration.yml, this file should contain the component name in the yaml field
-      # `name: <component-name>`
-      - name: Find component directories
-        uses: actions/github-script@v7
+      - name: Validate and Find components
+        uses: mfdlabs/component-finder-action@v1
         id: find-component-directories
         with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-            const yaml = require('yaml');
+          components: ${{ github.event.inputs.components }}
 
-            const neededComponents = "${{ steps.validate-components.outputs.components }}".split(",");
-            const searchDirs = "${{ env.COMPONENTS_SEARCH_DIRS }}".split(",");
-
-            const foundComponents = [];
-
-            const components = {};
-
-            // Recursively search for the component configuration file
-            const searchForComponent = (dir) => {
-              if (!fs.existsSync(dir)) {
-                core.warning(`Directory ${dir} does not exist`);
-                return;
-              }
-
-              const files = fs.readdirSync(dir);
-
-              for (const file of files) {
-                const filePath = path.join(dir, file);
-                const stat = fs.statSync(filePath);
-
-                if (stat.isDirectory()) {
-                  searchForComponent(filePath);
-                } else if (file === "${{ env.COMPONENT_CONFIGURATION_FILE_NAME }}") {
-                  const componentConfig = fs.readFileSync(filePath, 'utf8');
-                  const component = yaml.parse(componentConfig).component;
-
-                  for (const neededComponent of neededComponents) {
-                    if (neededComponent.split(":")[0] === component) {
-                      components[neededComponent] = path.resolve(filePath);
-                      foundComponents.push(component);
-                    }
-                  }
-                }
-              }
-            }
-
-            for (const searchDir of searchDirs) {
-              searchForComponent(searchDir);
-            }
-
-            // Make a warning for each component that was not found
-            for (const component of neededComponents.map(c => c.split(":")[0])) {
-              if (!foundComponents.includes(component)) {
-                core.warning(`Component ${component} not found`);
-              }
-            }
-
-            core.setOutput('components', components);
-
-  test-job:
+  parse-nomad-jobs:
     name: Parse and Validate Components
     runs-on: ubuntu-latest
 
@@ -134,12 +39,12 @@ jobs:
 
     if: ${{ needs.parse-input-components.outputs.components != '' }}
 
+    outputs:
+      nomad-files: ${{ steps.validate-components.outputs.nomad-files }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Install needed dependencies
-        run: npm install js-yaml
 
       - name: Validate Components
         uses: mfdlabs/component-nomad-parser-action@v3
@@ -149,13 +54,3 @@ jobs:
           NOMAD_SHORT_ENVIRONMENT: dev
         with:
           components: ${{ needs.parse-input-components.outputs.components }}
-
-      - name: Debug
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const components = new Map(Object.entries(${{ steps.validate-components.outputs.nomad-files }}));
-
-            for (const [component, nomadFile] of components) {
-              console.log(`Component: ${component}, Nomad File: ${nomadFile}`);
-            }
