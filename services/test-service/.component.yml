@@ -38,7 +38,7 @@ deployment:
             to: 6379
       services:
         - name: redis-test-${{ env.NOMAD_SHORT_ENVIRONMENT }}
-          port: metrics
+          port: db
           tags:
             - ${{ env.NOMAD_ENVIRONMENT }}
  
