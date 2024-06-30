@@ -13,5 +13,5 @@ jobs:
         uses: benc-uk/workflow-dispatch@v1
         with:
           workflow: deploy.yml
-          ref: main
           inputs: '{ "components": "grid-bot:latest" }'
+          token: ${{ secrets.ACCESS_TOKEN }}
