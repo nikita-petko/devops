@@ -156,24 +156,24 @@ jobs:
 
             function validateComponent(configFileName, config) {
               if (!config.component) {
-                core.setError('Component name is required');
+                core.error('Component name is required');
                 return false;
               }
 
               if (!config.build) {
-                core.setError('Build section is required');
+                core.error('Build section is required');
                 return false;
               }
 
               if (!config.build.project_file) {
-                core.setError('Build project file is required');
+                core.error('Build project file is required');
                 return false;
               }
 
               config.build.project_file = path.resolve(path.dirname(configFileName), config.build.project_file);
 
               if (!fs.existsSync(config.build.project_file)) {
-                core.setError(`Project file ${config.build.project_file} does not exist`);
+                core.error(`Project file ${config.build.project_file} does not exist`);
                 return false;
               }
 
@@ -184,7 +184,7 @@ jobs:
               config.build.component_directory = path.resolve(path.dirname(configFileName), config.build.component_directory, '${{ steps.version.outputs.version }}');
 
               if (!config.build.docker) {
-                core.setError('Docker section is required');
+                core.error('Docker section is required');
 
                 return false;
               }
@@ -196,12 +196,12 @@ jobs:
               config.build.docker.docker_file = path.resolve(path.dirname(configFileName), config.build.docker.docker_file);
 
               if (!fs.existsSync(config.build.docker.docker_file)) {
-                core.setError(`Docker file ${config.build.docker.docker_file} does not exist`);
+                core.error(`Docker file ${config.build.docker.docker_file} does not exist`);
                 return false;
               }
 
               if (!config.build.docker.image_name) {
-                core.setError('Docker image name is required');
+                core.error('Docker image name is required');
                 return false;
               }
 
