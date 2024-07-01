@@ -342,6 +342,8 @@ jobs:
                 prerelease: ${{ env.BUILD_CONFIGURATION == 'Debug' }}
               });
 
+              console.log(release)
+
               await github.rest.repos.uploadReleaseAsset({
                 owner: '${{ github.repository_owner }}',
                 repo: '${{ github.repository }}'.split('/')[1],
