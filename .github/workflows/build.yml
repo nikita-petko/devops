@@ -72,7 +72,7 @@ jobs:
 
     outputs:
       components: ${{ steps.parse-commit-message.outputs.components }}
-      deployable_components: ${{ steps.parse-commit-message.outputs.deployable_components }}
+      deployable-components: ${{ steps.parse-commit-message.outputs.deployable-components }}
 
     steps:
       - name: Checkout
@@ -94,11 +94,9 @@ jobs:
             const headCommitMessage = `${{ github.event.head_commit.message }}`;
             const components = headCommitMessage.match(/#!components: ([a-zA-Z0-9_\-.,]+)/);
             const deployableComponents = headCommitMessage.match(/#!deployable-components: ([a-zA-Z0-9_\-.,]+)/);
-            
-            return {
-              components: components && components[1] || '',
-              deployable_components: deployableComponents && deployableComponents[1] || ''
-            }
+
+            core.setOutput('components', components && components[1] || '');
+            core.setOutput('deployable-components', deployableComponents && deployableComponents[1] || '');
 
   build:
     if: ${{ !contains(github.event.head_commit.message, '#!skip-build!#') }}
@@ -109,7 +107,7 @@ jobs:
     env:
       BUILD_CONFIGURATION: ${{ github.event.inputs.build_configuration || (github.event_name == 'push' && github.ref == 'refs/heads/master' && 'Release') || 'Debug' }}
 
-      COMPONENT_NAMES: ${{ (github.event_name == 'push' && needs.get-component-names.outputs.components) || github.event.inputs.components }}
+      COMPONENT_NAMES: ${{ github.event.inputs.components || needs.get-component-names.outputs.components }}
 
     outputs:
       components: ${{ steps.find-component-directories.outputs.components }}
@@ -167,7 +165,7 @@ jobs:
 
       NOMAD_RESOURCES: ${{ github.event.inputs.nomad_resources }}
 
-      DEPLOYABLE_COMPONENTS: ${{ (github.event_name == 'push' && needs.get-component-names.outputs.deployable_components) || github.event.inputs.deployable_components }}
+      DEPLOYABLE_COMPONENTS: ${{ github.event.inputs.deployable_components || needs.get-component-names.outputs.deployable-components }}
 
     steps:
       - name: Echo Component Names
