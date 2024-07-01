@@ -327,7 +327,7 @@ jobs:
             const fs = require('fs');
             const path = require('path');
 
-            const components = ${{ env.COMPONENTS }};
+            const components = "${{ env.COMPONENTS }}";
 
             for (const [component] of Object.entries(components)) {
               const data = fs.readFileSync(path.resolve('${{ github.workspace }}/.deploy', `${component}.zip`));
