@@ -386,7 +386,7 @@ jobs:
             child_process.execSync(`echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ vars.DOCKER_USERNAME }} --password-stdin`, { stdio: 'inherit' });
 
             const dockerCommands = ${{ needs.build.outputs.docker-commands }};
-            const components = '${{ env.COMPONENTS }}'.split(',').map(component => `${component}:${${{ needs.build.outputs.version }}}`);
+            const components = '${{ env.COMPONENTS }}'.split(',').map(component => `${component}:${{ needs.build.outputs.version }}`);
 
             for (const [componentAndImage, dockerCommand] of Object.entries(dockerCommands)) {
               const [component, image] = componentAndImage.split('@');
@@ -404,7 +404,7 @@ jobs:
               if ("${{ github.ref }}" === "refs/heads/master") {
                 // Tag the image
                 try {
-                  child_process.execSync(`docker tag ${image}:${${{ needs.build.outputs.version }}} ${image}:latest`, { stdio: 'inherit' });
+                  child_process.execSync(`docker tag ${image}:${{ needs.build.outputs.version }} ${image}:latest`, { stdio: 'inherit' });
                 } catch (error) {
                   core.setFailed(`Failed to tag docker image for ${component}`);
 
@@ -414,7 +414,7 @@ jobs:
 
               // Push the image
               try {
-                child_process.execSync(`docker push ${image}:${${{ needs.build.outputs.version }}}`, { stdio: 'inherit' });
+                child_process.execSync(`docker push ${image}:${{ needs.build.outputs.version }}`, { stdio: 'inherit' });
               } catch (error) {
                 core.setFailed(`Failed to push docker image for ${component}`);
 
