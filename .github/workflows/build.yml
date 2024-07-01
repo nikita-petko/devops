@@ -91,7 +91,7 @@ jobs:
             // component parts of commit messages do not close with !#, to find the end,
             // just read the unti a newline character is found
 
-            const headCommitMessage = '${{ github.event.head_commit.message }}';
+            const headCommitMessage = `${{ github.event.head_commit.message }}`;
             const components = headCommitMessage.match(/#!components: ([a-zA-Z0-9_\-.,]+)/);
             const deployableComponents = headCommitMessage.match(/#!deployable-components: ([a-zA-Z0-9_\-.,]+)/);
             
