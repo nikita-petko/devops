@@ -481,5 +481,5 @@ jobs:
         uses: benc-uk/workflow-dispatch@v1
         with:
           workflow: deploy.yml
-          inputs: ${{ needs.get-deployable-components.outputs.action-inputs }}
+          inputs: ${{ steps.get-deployable-components.outputs.action-inputs }}
           token: ${{ secrets.ACCESS_TOKEN }}
