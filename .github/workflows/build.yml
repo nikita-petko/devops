@@ -265,10 +265,10 @@ jobs:
               }
 
               // Zip the component, and move it to the deploy directory
-              const zipCommand = `zip -r ${path.resolve(deployDirectory, `${componentConfig.component}.zip`)} ${componentConfig.build.component_directory}`;
+              const zipCommand = `zip -r ${path.resolve(deployDirectory, `${componentConfig.component}.zip`)} .`;
 
               try {
-                child_process.execSync(zipCommand, { stdio: 'inherit' });
+                child_process.execSync(zipCommand, { stdio: 'inherit', cwd: path.dirname(componentConfig.build.component_directory) });
               } catch (error) {
                 core.setFailed(`Failed to zip component ${component}`);
 
@@ -360,84 +360,88 @@ jobs:
 
       - name: Write Dockerfiles
         if: ${{ env.CREATE_IMAGE }}
-        run: |
-          const fs = require('fs');
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
 
-          const dockerFiles = ${{ needs.build.outputs.docker-files }};
+            const dockerFiles = ${{ needs.build.outputs.docker-files }};
 
-          for (const [component, dockerFile] of Object.entries(dockerFiles)) {
-            fs.writeFileSync(`${component}.dockerfile`, dockerFile);
-          }
+            for (const [component, dockerFile] of Object.entries(dockerFiles)) {
+              fs.writeFileSync(`${component}.dockerfile`, dockerFile);
+            }
       
       - name: Build Docker Images
         if: ${{ env.CREATE_IMAGE }}
         id: build-docker-images
-        run: |
-          const fs = require('fs');
-          const path = require('path');
-          const util = require('util');
-          const child_process = require('child_process');
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const util = require('util');
+            const child_process = require('child_process');
 
-          // Login to Docker
-          child_process.execSync(`echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ vars.DOCKER_USERNAME }} --password-stdin`, { stdio: 'inherit' });
+            // Login to Docker
+            child_process.execSync(`echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ vars.DOCKER_USERNAME }} --password-stdin`, { stdio: 'inherit' });
 
-          const dockerCommands = ${{ needs.build.outputs.docker-commands }};
-          const components = ${{ env.COMPONENTS }};
+            const dockerCommands = ${{ needs.build.outputs.docker-commands }};
+            const components = ${{ env.COMPONENTS }};
 
-          let newComponents = {};
+            let newComponents = {};
 
-          for (const [component, componentFile] of Object.entries(components)) {
-            const [name] = component.split(':');
+            for (const [component, componentFile] of Object.entries(components)) {
+              const [name] = component.split(':');
 
-            newComponents[`${name}:${{ needs.build.outputs.version }}`] = componentFile;
-          }
-
-          for (const [componentAndImage, dockerCommand] of Object.entries(dockerCommands)) {
-            const [component, image] = componentAndImage.split('@');
-
-            const formattedCommand = util.format(dockerCommand, path.resolve('${{ github.workspace }}', `${component}.dockerfile`), path.resolve('${{ github.workspace }}', '.deploy', component));
-
-            try {
-              child_process.execSync(formattedCommand, { stdio: 'inherit' });
-            } catch (error) {
-              core.setFailed(`Failed to build docker image for ${component}`);
-
-              return;
+              newComponents[`${name}:${{ needs.build.outputs.version }}`] = componentFile;
             }
 
-            if ("${{ github.ref }}" === "refs/heads/master") {
-              // Tag the image
+            for (const [componentAndImage, dockerCommand] of Object.entries(dockerCommands)) {
+              const [component, image] = componentAndImage.split('@');
+
+              const formattedCommand = util.format(dockerCommand, path.resolve('${{ github.workspace }}', `${component}.dockerfile`), path.resolve('${{ github.workspace }}', '.deploy', component));
+
               try {
-                child_process.execSync(`docker tag ${image}:${${{ needs.build.outputs.version }}} ${image}:latest`, { stdio: 'inherit' });
+                child_process.execSync(formattedCommand, { stdio: 'inherit' });
               } catch (error) {
-                core.setFailed(`Failed to tag docker image for ${component}`);
+                core.setFailed(`Failed to build docker image for ${component}`);
 
                 return;
               }
-            }
 
-            // Push the image
-            try {
-              child_process.execSync(`docker push ${image}:${${{ needs.build.outputs.version }}}`, { stdio: 'inherit' });
-            } catch (error) {
-              core.setFailed(`Failed to push docker image for ${component}`);
+              if ("${{ github.ref }}" === "refs/heads/master") {
+                // Tag the image
+                try {
+                  child_process.execSync(`docker tag ${image}:${${{ needs.build.outputs.version }}} ${image}:latest`, { stdio: 'inherit' });
+                } catch (error) {
+                  core.setFailed(`Failed to tag docker image for ${component}`);
 
-              return;
-            }
+                  return;
+                }
+              }
 
-            if ("${{ github.ref }}" === "refs/heads/master") {
               // Push the image
               try {
-                child_process.execSync(`docker push ${image}:latest`, { stdio: 'inherit' });
+                child_process.execSync(`docker push ${image}:${${{ needs.build.outputs.version }}}`, { stdio: 'inherit' });
               } catch (error) {
                 core.setFailed(`Failed to push docker image for ${component}`);
 
                 return;
               }
-            }
-          }
 
-          core.setOutput('components', newComponents);
+              if ("${{ github.ref }}" === "refs/heads/master") {
+                // Push the image
+                try {
+                  child_process.execSync(`docker push ${image}:latest`, { stdio: 'inherit' });
+                } catch (error) {
+                  core.setFailed(`Failed to push docker image for ${component}`);
+
+                  return;
+                }
+              }
+            }
+
+            core.setOutput('components', newComponents);
 
   deploy:
     if: ${{ github.event_name != 'workflow_dispatch' && !contains(github.event.head_commit.message, '#!skip-deploy!#') && github.ref == 'refs/heads/master' }}
