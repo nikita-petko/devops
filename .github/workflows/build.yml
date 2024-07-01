@@ -156,7 +156,7 @@ jobs:
 
     needs: 
       - get-component-names
-      - build
+      - upload-artifacts
 
     runs-on: ubuntu-latest
 
