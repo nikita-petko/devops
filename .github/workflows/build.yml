@@ -217,7 +217,7 @@ jobs:
                 }
               }
 
-              dockerCommands[`$${config.component}@${config.build.docker.image_name}`] = dockerCommand;
+              dockerCommands[`${config.component}@${config.build.docker.image_name}`] = dockerCommand;
               dockerFiles[config.component] = fs.readFileSync(config.build.docker.docker_file, 'utf8');
 
               return true;
@@ -386,15 +386,7 @@ jobs:
             child_process.execSync(`echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ vars.DOCKER_USERNAME }} --password-stdin`, { stdio: 'inherit' });
 
             const dockerCommands = ${{ needs.build.outputs.docker-commands }};
-            const components = ${{ env.COMPONENTS }};
-
-            let newComponents = {};
-
-            for (const [component, componentFile] of Object.entries(components)) {
-              const [name] = component.split(':');
-
-              newComponents[`${name}:${{ needs.build.outputs.version }}`] = componentFile;
-            }
+            const components = '${{ env.COMPONENTS }}'.split(',').map(component => `${component}:${${{ needs.build.outputs.version }}}`);
 
             for (const [componentAndImage, dockerCommand] of Object.entries(dockerCommands)) {
               const [component, image] = componentAndImage.split('@');
@@ -441,7 +433,7 @@ jobs:
               }
             }
 
-            core.setOutput('components', newComponents);
+            core.setOutput('components', components);
 
   deploy:
     if: ${{ github.event_name != 'workflow_dispatch' && !contains(github.event.head_commit.message, '#!skip-deploy!#') && github.ref == 'refs/heads/master' }}
@@ -453,7 +445,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      COMPONENTS_TO_CONFIGS: ${{ needs.upload-artifacts.outputs.components }}
+      COMPONENTS: ${{ needs.upload-artifacts.outputs.components }}
       DEPLOYABLE_COMPONENTS: ${{ github.event.inputs.deployable_components || needs.get-component-names.outputs.deployable-components }}
 
     steps:
@@ -462,12 +454,12 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const components = ${{ env.COMPONENTS_TO_CONFIGS }};
-            const deployableComponents = ${{ env.DEPLOYABLE_COMPONENTS }};
+            const components = '${{ env.COMPONENTS }}';
+            const deployableComponents = '${{ env.DEPLOYABLE_COMPONENTS }}';
 
             let deployableComponentsMap = '';
 
-            for (const [component, componentFile] of Object.entries(components)) {
+            for (const component of deployableComponents.split(',')) {
               const [name] = component.split(':');
 
               if (deployableComponents.includes(name)) {
