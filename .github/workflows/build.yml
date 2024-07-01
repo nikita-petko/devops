@@ -145,6 +145,11 @@ jobs:
 
             const deployDirectory = path.resolve(process.env.GITHUB_WORKSPACE, '.deploy');
 
+            // Ensure the deploy directory exists
+            if (!fs.existsSync(deployDirectory)) {
+              fs.mkdirSync(deployDirectory, { recursive: true });
+            }
+
             let components = ${{ steps.find-component-directories.outputs.components }};
             const outputComponents = Object.keys(components).map(component => component.split(':')[0]);
             components = new Map(Object.entries(components));
