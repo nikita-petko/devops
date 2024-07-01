@@ -205,7 +205,7 @@ jobs:
                 return false;
               }
 
-              let dockerCommand = `docker build -t ${config.build.docker.image_name}:${{ steps.version.outputs.version }} -f %s ${path.dirname(config.build.docker.docker_file)}`;
+              let dockerCommand = `docker build -t ${config.build.docker.image_name}:${{ steps.version.outputs.version }} -f %s %s`;
               if (config.build.docker.build_args) {
                 for (const arg of config.build.docker.build_args) {
                   dockerCommand += ` --build-arg ${arg}`;
@@ -238,7 +238,9 @@ jobs:
               const componentConfig = yaml.parse(replacedContents);
 
               if (!validateComponent(configFileName, componentConfig)) {
-                continue;
+                core.setFailed(`Failed to validate component ${component}`);
+
+                return;
               }
 
               let dotnetCommand = `dotnet publish ${componentConfig.build.project_file} -c ${{ env.BUILD_CONFIGURATION }} -o ${componentConfig.build.component_directory}`;
@@ -254,7 +256,7 @@ jobs:
               } catch (error) {
                 core.setFailed(`Failed to build component ${component}`);
 
-                continue;
+                 return;
               }
 
               // Zip the component, and move it to the deploy directory
@@ -265,7 +267,7 @@ jobs:
               } catch (error) {
                 core.setFailed(`Failed to zip component ${component}`);
 
-                continue;
+                 return;
               }
 
               // Move the zip file to the deploy directory
@@ -287,7 +289,7 @@ jobs:
   # No need for checkout, downloads the component archives from the
   # artifacts of the build job
   upload-artifacts:
-    if: ${{ always() && !contains(github.event.head_commit.message, '#!skip-release!#') && !contains(github.event.head_commit.message, '#!skip-image!#') && !contains(github.event.head_commit.message, '#!skip-build!#') }}
+    if: ${{ always() && !contains(github.event.head_commit.message, '#!skip-release!#') && !contains(github.event.head_commit.message, '#!skip-image!#') && !contains(github.event.head_commit.message, '#!skip-build!#') && needs.build.result == 'success' }}
 
     needs: build
 
@@ -389,14 +391,14 @@ jobs:
           for (const [componentAndImage, dockerCommand] of Object.entries(dockerCommands)) {
             const [component, image] = componentAndImage.split('@');
 
-            const formattedCommand = util.format(dockerCommand, path.resolve('${{ github.workspace }}', `${component}.dockerfile`));
+            const formattedCommand = util.format(dockerCommand, path.resolve('${{ github.workspace }}', `${component}.dockerfile`), path.resolve('${{ github.workspace }}', '.deploy', component));
 
             try {
               child_process.execSync(formattedCommand, { stdio: 'inherit' });
             } catch (error) {
               core.setFailed(`Failed to build docker image for ${component}`);
 
-              continue;
+              return;
             }
 
             if ("${{ github.ref }}" === "refs/heads/master") {
@@ -406,7 +408,7 @@ jobs:
               } catch (error) {
                 core.setFailed(`Failed to tag docker image for ${component}`);
 
-                continue;
+                return;
               }
             }
 
@@ -416,7 +418,7 @@ jobs:
             } catch (error) {
               core.setFailed(`Failed to push docker image for ${component}`);
 
-              continue;
+              return;
             }
 
             if ("${{ github.ref }}" === "refs/heads/master") {
@@ -426,7 +428,7 @@ jobs:
               } catch (error) {
                 core.setFailed(`Failed to push docker image for ${component}`);
 
-                continue;
+                return;
               }
             }
           }
