@@ -334,17 +334,17 @@ jobs:
 
               const release = github.rest.repos.createRelease({
                 owner: '${{ github.repository_owner }}',
-                repo: '${{ github.repository }}',
+                repo: '${{ github.repository }}'.split('/')[1],
                 tag_name: `${component}-${{ needs.build.outputs.version }}`,
                 name: `${component}-${{ needs.build.outputs.version }}`,
-                target_commitish: github.context.sha,
+                target_commitish: '${{ github.sha }}'
                 generate_release_notes: true,
                 prerelease: ${{ env.BUILD_CONFIGURATION == 'Debug' }},
               });
 
               github.rest.repos.uploadReleaseAsset({
-                owner: '${{ github.repository_owner }}'
-                repo: '${{ github.repository }}',
+                owner: '${{ github.repository_owner }}',
+                repo: '${{ github.repository }}'.split('/')[1],
                 release_id: release.id,
                 name: `${{ needs.build.outputs.version }}.zip`,
                 data: data,
