@@ -329,7 +329,7 @@ jobs:
 
             const components = "${{ env.COMPONENTS }}";
 
-            for (const [component] of Object.entries(components)) {
+            for (const component of components.split(',')) {
               const data = fs.readFileSync(path.resolve('${{ github.workspace }}/.deploy', `${component}.zip`));
 
               const release = github.rest.repos.createRelease({
