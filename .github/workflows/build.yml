@@ -125,7 +125,7 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Validate and Find components
-        uses: mfdlabs/component-finder-action@v9
+        uses: mfdlabs/component-finder-action@v10
         id: find-component-directories
         with:
           components: ${{ env.COMPONENT_NAMES }}
