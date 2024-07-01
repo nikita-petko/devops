@@ -42,22 +42,6 @@ on:
         default: true
         type: boolean
 
-      nomad_environment:
-        description: "Nomad Environment"
-        required: true
-        default: "production"
-        type: choice
-        options:
-          - "production"
-          - "staging"
-
-      # In the form of "component,cpu:ram;component2,cpu:ram"
-      nomad_resources:
-        description: "The resources to use when deploying"
-        required: false
-        default: ""
-        type: string
-
 permissions:
   contents: write
   deployments: write
@@ -68,7 +52,7 @@ jobs:
   get-component-names:
     runs-on: ubuntu-latest
 
-    if: ${{ github.event_name != 'workflow_dispatch' }}
+    if: ${{ github.event_name != 'workflow_dispatch' && !contains(github.event.head_commit.message, '#!skip-build!#') }}
 
     outputs:
       components: ${{ steps.parse-commit-message.outputs.components }}
@@ -110,7 +94,10 @@ jobs:
       COMPONENT_NAMES: ${{ github.event.inputs.components || needs.get-component-names.outputs.components }}
 
     outputs:
-      components: ${{ steps.find-component-directories.outputs.components }}
+      components: ${{ steps.build-components.outputs.components }}
+      version: ${{ steps.version.outputs.version }}
+      docker-commands: ${{ steps.build-components.outputs.docker-commands }}
+      docker-files: ${{ steps.build-components.outputs.docker-files }}
 
     steps:
       - name: Checkout
@@ -123,12 +110,183 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Download Needed Node Modules
+        run: npm install yaml
+
       - name: Validate and Find components
         uses: mfdlabs/component-finder-action@v10
         id: find-component-directories
         with:
           components: ${{ env.COMPONENT_NAMES }}
           component-search-directories: services
+
+      - name: Generate Version
+        id: version
+        run: |
+          DATE=$(date +"%Y.%m.%d-%H.%M.%S")
+
+          # Format: yyyy.mm.dd-hh.mm.ss-<short sha>
+          VERSION="$DATE-$(echo $GITHUB_SHA | cut -c1-7)"
+
+          # If we are building debug, append -dev
+          if [ "${{ env.BUILD_CONFIGURATION }}" == "Debug" ]; then
+            VERSION="$VERSION-dev"
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build Components
+        uses: actions/github-script@v7
+        id: build-components
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          NOMAD_VERSION: ${{ steps.version.outputs.version }}
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('yaml');
+            const child_process = require('child_process');
+
+            const deployDirectory = path.resolve(process.env.GITHUB_WORKSPACE, '.deploy');
+
+            let components = ${{ steps.find-component-directories.outputs.components }};
+            const outputComponents = Object.keys(components).map(component => component.split(':')[0]);
+            components = new Map(Object.entries(components));
+
+            core.setOutput('components', outputComponents.join(','));
+
+            let dockerCommands = {};
+            let dockerFiles = {};
+
+            function validateComponent(configFileName, config) {
+              if (!config.component) {
+                core.setError('Component name is required');
+                return false;
+              }
+
+              if (!config.build) {
+                core.setError('Build section is required');
+                return false;
+              }
+
+              if (!config.build.project_file) {
+                core.setError('Build project file is required');
+                return false;
+              }
+
+              config.build.project_file = path.resolve(path.dirname(configFileName), config.build.project_file);
+
+              if (!fs.existsSync(config.build.project_file)) {
+                core.setError(`Project file ${config.build.project_file} does not exist`);
+                return false;
+              }
+
+              if (!config.build.component_directory) {
+                config.build.component_directory = './.deploy';
+              }
+
+              config.build.component_directory = path.resolve(path.dirname(configFileName), config.build.component_directory, '${{ steps.version.outputs.version }}');
+
+              if (!config.build.docker) {
+                core.setError('Docker section is required');
+
+                return false;
+              }
+
+              if (!config.build.docker.docker_file) {
+                config.build.docker.docker_file = 'Dockerfile';
+              }
+
+              config.build.docker.docker_file = path.resolve(path.dirname(configFileName), config.build.docker.docker_file);
+
+              if (!fs.existsSync(config.build.docker.docker_file)) {
+                core.setError(`Docker file ${config.build.docker.docker_file} does not exist`);
+                return false;
+              }
+
+              if (!config.build.docker.image_name) {
+                core.setError('Docker image name is required');
+                return false;
+              }
+
+              let dockerCommand = `docker build -t ${config.build.docker.image_name}:${{ steps.version.outputs.version }} -f %s ${path.dirname(config.build.docker.docker_file)}`;
+              if (config.build.docker.build_args) {
+                for (const arg of config.build.docker.build_args) {
+                  dockerCommand += ` --build-arg ${arg}`;
+                }
+              }
+
+              dockerCommands[`$${config.component}@${config.build.docker.image_name}`] = dockerCommand;
+              dockerFiles[config.component] = fs.readFileSync(config.build.docker.docker_file, 'utf8');
+
+              return true;
+            }
+
+            for (const [component, configFileName] of components) {
+              const [name, version] = component.split(':');
+
+              const componentConfigData = fs.readFileSync(configFileName, 'utf8');
+              const replacedContents = componentConfigData.replace(
+                /\$\{{ env.([A-Za-z_]+) }}/g, // back slash needed here to escape from github action
+                (_, envVar) => {
+                  const value = process.env[envVar]
+
+                  if (!value) {
+                    return 'undefined'
+                  }
+
+                  return value
+                },
+              )
+
+              const componentConfig = yaml.parse(replacedContents);
+
+              if (!validateComponent(configFileName, componentConfig)) {
+                continue;
+              }
+
+              let dotnetCommand = `dotnet publish ${componentConfig.build.project_file} -c ${{ env.BUILD_CONFIGURATION }} -o ${componentConfig.build.component_directory}`;
+
+              if (componentConfig.build.additional_args) {
+                for (const arg of componentConfig.build.additional_args) {
+                  dotnetCommand += ` ${arg}`;
+                }
+              }
+
+              try {
+                child_process.execSync(dotnetCommand, { stdio: 'inherit' });
+              } catch (error) {
+                core.setFailed(`Failed to build component ${component}`);
+
+                continue;
+              }
+
+              // Zip the component, and move it to the deploy directory
+              const zipCommand = `zip -r ${componentConfig.component}.zip ${componentConfig.build.component_directory}`;
+
+              try {
+                child_process.execSync(zipCommand, { stdio: 'inherit' });
+              } catch (error) {
+                core.setFailed(`Failed to zip component ${component}`);
+
+                continue;
+              }
+
+              // Move the zip file to the deploy directory
+              fs.renameSync(`${componentConfig.component}.zip`, path.resolve(deployDirectory, `${componentConfig.component}.zip`));
+            }
+
+
+            core.setOutput('docker-files', dockerFiles);
+            core.setOutput('docker-commands', dockerCommands);
+            core.setOutput('deploy-directory', deployDirectory);
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: components
+          path: ${{ steps.build-components.outputs.deploy-directory }}/*.zip
+        
 
   # No need for checkout, downloads the component archives from the
   # artifacts of the build job
@@ -139,19 +297,148 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    env:
-      CREATE_RELEASE: ${{ github.event.inputs.create_release || !contains(github.event.head_commit.message, '#!skip-release!#') }}
-      CREATE_IMAGE: ${{ github.event.inputs.create_image || !contains(github.event.head_commit.message, '#!skip-image!#') }}
+    outputs:
+      components: ${{ steps.build-docker-images.outputs.components }}
 
-      COMPONENT_NAMES: ${{ needs.build.outputs.components }}
+    env:
+      BUILD_CONFIGURATION: ${{ github.event.inputs.build_configuration || (github.event_name == 'push' && github.ref == 'refs/heads/master' && 'Release') || 'Debug' }}
+
+      CREATE_RELEASE: ${{ github.event.inputs.create_release || !contains(github.event.head_commit.message, '#!skip-release!#') }}
+
+      COMPONENTS: ${{ needs.build.outputs.components }}
+
+      DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
+      CREATE_IMAGE: ${{ (github.event.inputs.create_image || !contains(github.event.head_commit.message, '#!skip-image!#')) && vars.DOCKER_USERNAME && secrets.DOCKER_PASSWORD }}
 
     steps:
-      - name: Echo Component Names
-        run: 'echo "Components: ${{ env.COMPONENT_NAMES }}"'
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: components
+          path: ${{ github.workspace }}/.deploy
 
-  
+      - name: Write GitHub Releases
+        if: ${{ env.CREATE_RELEASE }}
+        run: |
+          const fs = require('fs');
+          const path = require('path');
+
+          const components = ${{ env.COMPONENTS }};
+
+          for (const [component] of Object.entries(components)) {
+            const data = fs.readFileSync(path.resolve('${{ github.workspace }}/.deploy', `${component}.zip`));
+
+            const release = github.rest.repos.createRelease({
+              owner: github.context.repo.owner,
+              repo: github.context.repo.repo,
+              tag_name: `${component}-${{ needs.build.outputs.version }}`,
+              name: `${component}-${{ needs.build.outputs.version }}`,
+              target_commitish: github.context.sha,
+              generate_release_notes: true,
+              prerelease: ${{ env.BUILD_CONFIGURATION == 'Debug' }},
+            });
+
+            github.rest.repos.uploadReleaseAsset({
+              owner: github.context.repo.owner,
+              repo: github.context.repo.repo,
+              release_id: release.id,
+              name: `${{ needs.build.outputs.version }}.zip`,
+              data: data,
+            });
+          }
+
+      - name: Unpack Artifacts
+        if: ${{ env.CREATE_IMAGE }}
+        run: |
+          for file in ${{ github.workspace }}/.deploy/*.zip; do
+            unzip -o $file -d ${{ github.workspace }}/.deploy
+          done
+
+      - name: Write Dockerfiles
+        if: ${{ env.CREATE_IMAGE }}
+        run: |
+          const fs = require('fs');
+
+          const dockerFiles = ${{ needs.build.outputs.docker-files }};
+
+          for (const [component, dockerFile] of Object.entries(dockerFiles)) {
+            fs.writeFileSync(`${component}.dockerfile`, dockerFile);
+          }
+      
+      - name: Build Docker Images
+        if: ${{ env.CREATE_IMAGE }}
+        id: build-docker-images
+        run: |
+          const fs = require('fs');
+          const path = require('path');
+          const util = require('util');
+          const child_process = require('child_process');
+
+          // Login to Docker
+          child_process.execSync(`echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ vars.DOCKER_USERNAME }} --password-stdin`, { stdio: 'inherit' });
+
+          const dockerCommands = ${{ needs.build.outputs.docker-commands }};
+          const components = ${{ env.COMPONENTS }};
+
+          let newComponents = {};
+
+          for (const [component, componentFile] of Object.entries(components)) {
+            const [name] = component.split(':');
+
+            newComponents[`${name}:${{ needs.build.outputs.version }}`] = componentFile;
+          }
+
+          for (const [componentAndImage, dockerCommand] of Object.entries(dockerCommands)) {
+            const [component, image] = componentAndImage.split('@');
+
+            const formattedCommand = util.format(dockerCommand, path.resolve('${{ github.workspace }}', `${component}.dockerfile`));
+
+            try {
+              child_process.execSync(formattedCommand, { stdio: 'inherit' });
+            } catch (error) {
+              core.setFailed(`Failed to build docker image for ${component}`);
+
+              continue;
+            }
+
+            if ("${{ github.ref }}" === "refs/heads/master") {
+              // Tag the image
+              try {
+                child_process.execSync(`docker tag ${image}:${${{ needs.build.outputs.version }}} ${image}:latest`, { stdio: 'inherit' });
+              } catch (error) {
+                core.setFailed(`Failed to tag docker image for ${component}`);
+
+                continue;
+              }
+            }
+
+            // Push the image
+            try {
+              child_process.execSync(`docker push ${image}:${${{ needs.build.outputs.version }}}`, { stdio: 'inherit' });
+            } catch (error) {
+              core.setFailed(`Failed to push docker image for ${component}`);
+
+              continue;
+            }
+
+            if ("${{ github.ref }}" === "refs/heads/master") {
+              // Push the image
+              try {
+                child_process.execSync(`docker push ${image}:latest`, { stdio: 'inherit' });
+              } catch (error) {
+                core.setFailed(`Failed to push docker image for ${component}`);
+
+                continue;
+              }
+            }
+          }
+
+          core.setOutput('components', newComponents);
+
   deploy:
-    if: ${{ github.event_name != 'workflow_dispatch' && !contains(github.event.head_commit.message, '#!skip-deploy!#') }}
+    if: ${{ github.event_name != 'workflow_dispatch' && !contains(github.event.head_commit.message, '#!skip-deploy!#') && github.ref == 'refs/heads/master' }}
 
     needs: 
       - get-component-names
@@ -160,13 +447,38 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      NOMAD_ENVIRONMENT: ${{ github.event.inputs.nomad_environment }}
-      NOMAD_SHORT_ENVIRONMENT: ${{ github.event.inputs.nomad_environment == 'production' && 'prod' || 'stage' }}
-
-      NOMAD_RESOURCES: ${{ github.event.inputs.nomad_resources }}
-
+      COMPONENTS_TO_CONFIGS: ${{ needs.upload-artifacts.outputs.components }}
       DEPLOYABLE_COMPONENTS: ${{ github.event.inputs.deployable_components || needs.get-component-names.outputs.deployable-components }}
 
     steps:
-      - name: Echo Component Names
-        run: 'echo "Components: ${{ env.DEPLOYABLE_COMPONENTS }}"'
+      - name: Get Deployable Components
+        id: get-deployable-components
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const components = ${{ env.COMPONENTS_TO_CONFIGS }};
+            const deployableComponents = ${{ env.DEPLOYABLE_COMPONENTS }};
+
+            let deployableComponentsMap = '';
+
+            for (const [component, componentFile] of Object.entries(components)) {
+              const [name] = component.split(':');
+
+              if (deployableComponents.includes(name)) {
+                deployableComponentsMap += `${component},`;
+              }
+            }
+
+            const actionInputs = {
+              components: deployableComponentsMap.slice(0, -1),
+              nomad_environment: 'production'
+            };
+
+            core.setOutput('action-inputs', JSON.stringify(actionInputs));
+
+      - name: Dispatch Deployment
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: deploy.yml
+          inputs: ${{ needs.get-deployable-components.outputs.action-inputs }}
+          token: ${{ secrets.ACCESS_TOKEN }}
