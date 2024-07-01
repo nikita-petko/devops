@@ -62,6 +62,7 @@ permissions:
   contents: write
   deployments: write
 
+
 jobs:
   # Allows for a switch between push and workflow_dispatch
   get-component-names:
