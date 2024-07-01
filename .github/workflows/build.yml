@@ -332,7 +332,7 @@ jobs:
             for (const component of components.split(',')) {
               const data = fs.readFileSync(path.resolve('${{ github.workspace }}/.deploy', `${component}.zip`));
 
-              const release = await github.rest.repos.createRelease({
+              const response = await github.rest.repos.createRelease({
                 owner: '${{ github.repository_owner }}',
                 repo: '${{ github.repository }}'.split('/')[1],
                 tag_name: `${component}-${{ needs.build.outputs.version }}`,
@@ -342,12 +342,10 @@ jobs:
                 prerelease: ${{ env.BUILD_CONFIGURATION == 'Debug' }}
               });
 
-              console.log(release)
-
               await github.rest.repos.uploadReleaseAsset({
                 owner: '${{ github.repository_owner }}',
                 repo: '${{ github.repository }}'.split('/')[1],
-                release_id: release.id,
+                release_id: response.data.id,
                 name: `${{ needs.build.outputs.version }}.zip`,
                 data: data,
               });
