@@ -16,11 +16,6 @@ on:
         required: true
         type: string
 
-      deployable_components:
-        description: "The list of components to deploy"
-        required: false
-        type: string
-
       build_configuration:
         description: "Build Configuration"
         required: true
@@ -268,7 +263,7 @@ jobs:
               const zipCommand = `zip -r ${path.resolve(deployDirectory, `${componentConfig.component}.zip`)} .`;
 
               try {
-                child_process.execSync(zipCommand, { stdio: 'inherit', cwd: path.dirname(componentConfig.build.component_directory) });
+                child_process.execSync(zipCommand, { stdio: 'inherit', cwd: componentConfig.build.component_directory });
               } catch (error) {
                 core.setFailed(`Failed to zip component ${component}`);
 
@@ -355,10 +350,8 @@ jobs:
         if: ${{ env.CREATE_IMAGE }}
         run: |
           for file in ${{ github.workspace }}/.deploy/*.zip; do
-            unzip -o $file -d ${{ github.workspace }}/.deploy
-
-            # Rename the directory (is the current version)
-            mv ${{ github.workspace }}/.deploy/${{ needs.build.outputs.version }} ${{ github.workspace }}/.deploy/$(basename $file .zip)
+            mkdir ${{ github.workspace }}/.deploy/$(basename $file .zip)
+            unzip -o $file -d ${{ github.workspace }}/.deploy/$(basename $file .zip)
           done
 
       - name: Write Dockerfiles
@@ -439,7 +432,7 @@ jobs:
             core.setOutput('components', components);
 
   deploy:
-    if: ${{ github.event_name != 'workflow_dispatch' && !contains(github.event.head_commit.message, '#!skip-deploy!#') && github.ref == 'refs/heads/master' }}
+    if: ${{ github.event_name != 'workflow_dispatch' && !contains(github.event.head_commit.message, '#!skip-deploy!#') && github.ref == 'refs/heads/master' && needs.get-component-names.outputs.deployable-components != '' }}
 
     needs: 
       - get-component-names
@@ -449,7 +442,7 @@ jobs:
 
     env:
       COMPONENTS: ${{ needs.upload-artifacts.outputs.components }}
-      DEPLOYABLE_COMPONENTS: ${{ github.event.inputs.deployable_components || needs.get-component-names.outputs.deployable-components }}
+      DEPLOYABLE_COMPONENTS: ${{ needs.get-component-names.outputs.deployable-components }}
 
     steps:
       - name: Get Deployable Components
