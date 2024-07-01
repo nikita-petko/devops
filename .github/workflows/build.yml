@@ -133,7 +133,7 @@ jobs:
   # No need for checkout, downloads the component archives from the
   # artifacts of the build job
   upload-artifacts:
-    if: ${{ !contains(github.event.head_commit.message, '#!skip-release!#') && !contains(github.event.head_commit.message, '#!skip-image!#') }}
+    if: ${{ always() && !contains(github.event.head_commit.message, '#!skip-release!#') && !contains(github.event.head_commit.message, '#!skip-image!#') && !contains(github.event.head_commit.message, '#!skip-build!#') }}
 
     needs: build
 
