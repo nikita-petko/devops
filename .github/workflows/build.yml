@@ -356,6 +356,9 @@ jobs:
         run: |
           for file in ${{ github.workspace }}/.deploy/*.zip; do
             unzip -o $file -d ${{ github.workspace }}/.deploy
+
+            # Rename the directory (is the current version)
+            mv ${{ github.workspace }}/.deploy/${{ needs.build.outputs.version }} ${{ github.workspace }}/.deploy/$(basename $file .zip)
           done
 
       - name: Write Dockerfiles
