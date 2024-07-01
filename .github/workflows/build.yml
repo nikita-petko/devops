@@ -99,9 +99,11 @@ jobs:
             core.setOutput('deployable-components', deployableComponents && deployableComponents[1] || '');
 
   build:
-    if: ${{ !contains(github.event.head_commit.message, '#!skip-build!#') }}
+    if: ${{ always() && !contains(github.event.head_commit.message, '#!skip-build!#') }}
 
     needs: get-component-names
+
+    # Run even if get-component-names is skipped
 
     runs-on: ubuntu-latest
     env:
