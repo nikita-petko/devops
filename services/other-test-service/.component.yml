@@ -21,24 +21,14 @@ build:
 deployment:
   count: 1
 
-  job: other-redis-test-${{ env.NOMAD_SHORT_ENVIRONMENT }}
+  job: other-test-service-${{ env.NOMAD_SHORT_ENVIRONMENT }}
 
   # Passed to the meta section in Nomad
   meta:
     ENVIRONMENT: ${{ env.NOMAD_ENVIRONMENT }}
 
   containers: # Maps to the groups section in Nomad
-    - image: redis
+    - image: mfdlabs/test-service
       resources:
         cpu: ${{ env.NOMAD_CPU }}
         ram: ${{ env.NOMAD_RAM }}
-      network:
-        ports:
-          db:
-            to: 6379
-      services:
-        - name: other-redis-test-${{ env.NOMAD_SHORT_ENVIRONMENT }}
-          port: db
-          tags:
-            - ${{ env.NOMAD_ENVIRONMENT }}
- 
